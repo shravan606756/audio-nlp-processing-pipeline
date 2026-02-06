@@ -2,7 +2,7 @@ from transformers import pipeline
 from src.chunking import split_text
 
 summarizer = pipeline(
-    "text2text-generation",
+    "summarization",
     model="t5-small"
 )
 
