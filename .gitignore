@@ -1,0 +1,78 @@
+# ======================
+# Python
+# ======================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ======================
+# Virtual environments
+# ======================
+venv/
+env/
+ENV/
+.venv/
+.python-version
+
+# ======================
+# Environment variables
+# ======================
+.env
+.env.*
+
+# ======================
+# Model + ML cache (VERY important for whisper/transformers)
+# ======================
+.cache/
+huggingface/
+hf_cache/
+models/
+
+# ======================
+# Streamlit
+# ======================
+.streamlit/secrets.toml
+
+# ======================
+# Data / generated files
+# ======================
+data/
+*.mp3
+*.wav
+*.m4a
+*.webm
+
+# ======================
+# Logs
+# ======================
+*.log
+
+# ======================
+# IDE / Editor
+# ======================
+.vscode/
+.idea/
+
+# ======================
+# OS junk
+# ======================
+.DS_Store
+Thumbs.db
+
+# ======================
+# Jupyter (if used later)
+# ======================
+.ipynb_checkpoints/
+
+# ======================
+# Testing / coverage
+# ======================
+.coverage
+htmlcov/
+.pytest_cache/
