@@ -1,0 +1,6 @@
+streamlit
+openai-whisper
+transformers
+torch
+yt-dlp
+sentencepiece
