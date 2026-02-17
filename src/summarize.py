@@ -7,21 +7,21 @@ summarizer = pipeline(
 )
 
 def summarize_text(text):
+
     chunks = split_text(text)
 
     summaries = []
 
     for chunk in chunks:
-        prompt = "summarize: " + chunk
 
         result = summarizer(
-            prompt,
+            chunk,
             max_length=120,
             min_length=30,
             do_sample=False
         )
 
-        summaries.append(result[0]["generated_text"])
+        summaries.append(result[0]["summary_text"])
 
     final_summary = " ".join(summaries)
 
