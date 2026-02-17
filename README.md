@@ -28,17 +28,20 @@ Primary capabilities:
 
 ## Architecture
 
+```
 Input Layer
-├── Local audio upload
-└── YouTube ingestion (yt-dlp)
+    ├── Local audio upload
+    └── YouTube ingestion (yt-dlp)
 
 Processing Layer
-├── Speech transcription (Whisper)
-├── Text segmentation (chunking)
-└── Transformer summarization (T5)
+    ├── Speech transcription (Whisper)
+    ├── Text segmentation (chunking)
+    └── Transformer summarization (T5)
 
 Presentation Layer
-└── Streamlit application
+    └── Streamlit application
+```
+
 
 ---
 
