@@ -1,19 +1,21 @@
 from transformers import pipeline
 from src.chunking import split_text
 
+# Simple, stable summarizer
 summarizer = pipeline(
     "summarization",
     model="t5-small"
 )
 
-def summarize_level(texts):
+
+def summarize_chunks(chunks):
     summaries = []
 
-    for t in texts:
+    for chunk in chunks:
         result = summarizer(
-            t,
-            max_length=120,
-            min_length=30,
+            chunk,
+            max_length=140,
+            min_length=40,
             do_sample=False
         )
         summaries.append(result[0]["summary_text"])
@@ -23,15 +25,25 @@ def summarize_level(texts):
 
 def summarize_text(text):
 
-    # Level 1
+    # Level 1 — chunk transcript
     chunks = split_text(text, max_words=200, overlap=40)
-    level1 = summarize_level(chunks)
 
-    # Level 2
-    grouped = split_text(" ".join(level1), max_words=300, overlap=50)
-    level2 = summarize_level(grouped)
+    level1_summaries = summarize_chunks(chunks)
 
-    # Final
-    final_summary = summarize_level([" ".join(level2)])[0]
+    # Level 2 — combine and compress again
+    combined = " ".join(level1_summaries)
 
-    return final_summary
+    # If combined text is still large, compress once more
+    if len(combined.split()) > 300:
+        second_chunks = split_text(combined, max_words=200, overlap=40)
+        second_level = summarize_chunks(second_chunks)
+        combined = " ".join(second_level)
+
+    final_result = summarizer(
+        combined,
+        max_length=180,
+        min_length=60,
+        do_sample=False
+    )
+
+    return final_result[0]["summary_text"]
