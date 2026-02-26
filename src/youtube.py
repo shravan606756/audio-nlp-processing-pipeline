@@ -8,7 +8,7 @@ def download_audio(url):
         "format": "bestaudio/best",
         "outtmpl": output_path,
         "quiet": True
-    }
+    }  
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
