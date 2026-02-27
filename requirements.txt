@@ -5,3 +5,6 @@ torch
 yt-dlp
 sentencepiece
 accelerate
+youtube-transcript-api
+sentence-transformers
+faiss-cpu
