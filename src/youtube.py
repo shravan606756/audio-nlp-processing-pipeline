@@ -1,8 +1,7 @@
 import yt_dlp
 import os
-import json
 import tempfile
-
+import re
 
 def fetch_youtube_transcript(url):
     """
@@ -90,8 +89,11 @@ def fetch_youtube_transcript(url):
                         not line.startswith('Language:') and
                         '-->' not in line and
                         not line.isdigit()):
-                        # Clean up common caption artifacts
-                        cleaned = line.replace('\n', ' ').strip()
+                        
+                        # CRITICAL FIX: Strip inline VTT tags (<c>, timestamps, etc.)
+                        cleaned = re.sub(r'<[^>]+>', '', line)
+                        cleaned = cleaned.replace('\n', ' ').strip()
+                        
                         if cleaned and cleaned not in text_parts:  # Avoid duplicates
                             text_parts.append(cleaned)
                 
