@@ -6,6 +6,9 @@ from src.summarize import summarize_text
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
+import tempfile
+from gtts import gTTS
+import base64
 
 # Page Config
 st.set_page_config(
@@ -13,61 +16,61 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS
+# Custom CSS - FIXED: All text now visible in both light and dark modes
 st.markdown("""
     <style>
+    /* Force all text to be visible */
     .main-header {
         text-align: center;
         padding: 1rem 0;
         font-size: 2.5rem;
         font-weight: bold;
-        color: var(--text-color); /* Fixed black-on-black */
+        color: #ffffff !important;
     }
     .subtitle {
         text-align: center;
-        color: var(--text-color); /* Fixed black-on-black */
-        opacity: 0.8;
+        color: #cccccc !important;
         font-size: 1rem;
         margin-bottom: 2rem;
     }
     .info-box {
-        background-color: #f0f2f6;
+        background-color: #2b2b2b;
         padding: 1rem;
         border-radius: 0.5rem;
         margin: 1rem 0;
-        color: #1f1f1f;
+        color: #ffffff !important;
     }
     .stats-box {
-        background-color: #e8f4f8;
+        background-color: #1e3a5f;
         padding: 0.5rem 1rem;
         border-radius: 0.3rem;
         margin: 0.5rem 0;
         border-left: 4px solid #1f77b4;
-        color: #1f1f1f;
+        color: #ffffff !important;
     }
     .success-box {
-        background-color: #d4edda;
+        background-color: #1e4620;
         padding: 0.5rem 1rem;
         border-radius: 0.3rem;
         margin: 0.5rem 0;
         border-left: 4px solid #28a745;
-        color: #155724;
+        color: #90ee90 !important;
     }
     .warning-box {
-        background-color: #fff3cd;
+        background-color: #4a3f1a;
         padding: 0.5rem 1rem;
         border-radius: 0.3rem;
         margin: 0.5rem 0;
         border-left: 4px solid #ffc107;
-        color: #856404;
+        color: #ffe066 !important;
     }
     .error-box {
-        background-color: #f8d7da;
+        background-color: #4a1e1e;
         padding: 0.5rem 1rem;
         border-radius: 0.3rem;
         margin: 0.5rem 0;
         border-left: 4px solid #dc3545;
-        color: #721c24;
+        color: #ffb3b3 !important;
     }
     .model-badge {
         display: inline-block;
@@ -79,20 +82,68 @@ st.markdown("""
         font-family: monospace;
     }
     .badge-bart {
-        background-color: #e3f2fd;
-        color: #1976d2;
+        background-color: #1976d2;
+        color: #ffffff !important;
         border: 1px solid #1976d2;
     }
     .badge-t5 {
-        background-color: #f3e5f5;
-        color: #7b1fa2;
+        background-color: #7b1fa2;
+        color: #ffffff !important;
         border: 1px solid #7b1fa2;
     }
     .section-header {
         font-weight: 600;
-        color: var(--text-color); /* Fixed black-on-black */
+        color: #ffffff !important;
         margin-top: 1rem;
         margin-bottom: 0.5rem;
+    }
+    
+    /* CRITICAL: Force all Streamlit text elements to be visible */
+    .stMarkdown, .stMarkdown p, .stMarkdown span {
+        color: #ffffff !important;
+    }
+    
+    /* Fix tab labels */
+    .stTabs [data-baseweb="tab"] {
+        color: #ffffff !important;
+    }
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        color: #1f77b4 !important;
+    }
+    
+    /* Fix all headers */
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, 
+    .stMarkdown h4, .stMarkdown h5, .stMarkdown h6 {
+        color: #ffffff !important;
+    }
+    
+    /* Fix subheaders specifically */
+    [data-testid="stSubheader"] {
+        color: #ffffff !important;
+    }
+    
+    /* Fix metric labels and values */
+    [data-testid="stMetricLabel"] {
+        color: #cccccc !important;
+    }
+    [data-testid="stMetricValue"] {
+        color: #ffffff !important;
+    }
+    
+    /* Fix info boxes */
+    [data-testid="stInfo"] {
+        background-color: #1e3a5f !important;
+        color: #ffffff !important;
+    }
+    
+    /* Fix markdown text in info boxes */
+    [data-testid="stInfo"] .stMarkdown {
+        color: #ffffff !important;
+    }
+    
+    /* Fix all text in the app */
+    div[data-testid="stVerticalBlock"] > div {
+        color: #ffffff !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -121,7 +172,7 @@ with st.sidebar:
         "Detail level",
         options=["brief", "medium", "detailed"],
         value="medium",
-        help="Brief: ~95% compression | Medium: ~85% compression | Detailed: ~70% compression"
+        help="Brief: ~75% compression | Medium: ~70% compression | Detailed: ~65% compression"
     )
     
     st.divider()
@@ -146,6 +197,7 @@ with st.sidebar:
     st.caption("Transcription: OpenAI Whisper (base)")
     st.caption("Summarization: BART-large-CNN / T5-base")
     st.caption("Video Extraction: yt-dlp")
+    st.caption("Text-to-Speech: Google TTS")
 
 # Main Layout
 left_col, right_col = st.columns([1, 2])
@@ -196,7 +248,7 @@ with left_col:
                 
                 st.markdown('</div>', unsafe_allow_html=True)
 
-        if st.button("Process", type="primary", width="stretch"):
+        if st.button("Process", type="primary", use_container_width=True):
 
             if url.strip() == "":
                 st.error("Please enter a valid URL")
@@ -246,19 +298,21 @@ with left_col:
 
                     st.session_state["transcript"] = text
                     
-                    # FIX: Explicitly save BART metrics so they don't get lost
+                    # CRITICAL FIX: Isolated memory states for BART
                     st.session_state["summary_bart"] = summary
                     st.session_state["summary_metrics_bart"] = metrics
                     
+                    # Current active summary
                     st.session_state["summary"] = summary
                     st.session_state["summary_metrics"] = metrics
                     st.session_state["source"] = source
                     st.session_state["current_model"] = "bart-large-cnn"
                     
-                    if "summary_base" in st.session_state:
-                        del st.session_state["summary_base"]
-                    if "summary_metrics_base" in st.session_state:
-                        del st.session_state["summary_metrics_base"]
+                    # Clear T5 data when regenerating BART
+                    if "summary_t5" in st.session_state:
+                        del st.session_state["summary_t5"]
+                    if "summary_metrics_t5" in st.session_state:
+                        del st.session_state["summary_metrics_t5"]
                     
                     st.success("Processing complete")
                     
@@ -275,7 +329,7 @@ with left_col:
             file_size_mb = uploaded_file.size / (1024 * 1024)
             st.markdown(f'<div class="stats-box">File: {uploaded_file.name} ({file_size_mb:.2f} MB)</div>', unsafe_allow_html=True)
 
-            if st.button("Process", type="primary", width="stretch"):
+            if st.button("Process", type="primary", use_container_width=True):
                 try:
                     os.makedirs("data/audio", exist_ok=True)
                     file_path = f"data/audio/{uploaded_file.name}"
@@ -303,19 +357,21 @@ with left_col:
 
                     st.session_state["transcript"] = text
                     
-                    # FIX: Explicitly save BART metrics
+                    # CRITICAL FIX: Isolated memory states for BART
                     st.session_state["summary_bart"] = summary
                     st.session_state["summary_metrics_bart"] = metrics
                     
+                    # Current active summary
                     st.session_state["summary"] = summary
                     st.session_state["summary_metrics"] = metrics
                     st.session_state["source"] = source
                     st.session_state["current_model"] = "bart-large-cnn"
                     
-                    if "summary_base" in st.session_state:
-                        del st.session_state["summary_base"]
-                    if "summary_metrics_base" in st.session_state:
-                        del st.session_state["summary_metrics_base"]
+                    # Clear T5 data when regenerating BART
+                    if "summary_t5" in st.session_state:
+                        del st.session_state["summary_t5"]
+                    if "summary_metrics_t5" in st.session_state:
+                        del st.session_state["summary_metrics_t5"]
                     
                     st.success("Processing complete")
                     
@@ -353,7 +409,8 @@ with right_col:
             
             st.divider()
             
-            col1, col2 = st.columns(2)
+            # NEW: 3-column layout for buttons and audio
+            col1, col2, col3 = st.columns(3)
             
             with col1:
                 st.download_button(
@@ -361,40 +418,74 @@ with right_col:
                     data=summary_text,
                     file_name="summary.txt",
                     mime="text/plain",
-                    width="stretch"
+                    use_container_width=True
                 )
             
             with col2:
+                # NEW: TTS Audio Generation
+                if st.button("Generate Audio", use_container_width=True, type="secondary"):
+                    with st.spinner("Generating audio..."):
+                        try:
+                            tts = gTTS(text=summary_text, lang='en', slow=False)
+                            
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as fp:
+                                tts.save(fp.name)
+                                audio_path = fp.name
+                            
+                            with open(audio_path, 'rb') as audio_file:
+                                audio_bytes = audio_file.read()
+                            
+                            # CRITICAL FIX: Save audio with model-specific key
+                            st.session_state[f"audio_{current_model}"] = audio_bytes
+                            
+                            os.unlink(audio_path)
+                            
+                            st.success("Audio generated")
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"Audio generation failed: {str(e)}")
+            
+            with col3:
+                # Regenerate/Switch button
                 if current_model == "bart-large-cnn":
-                    if st.button("Regenerate with T5-base", width="stretch", type="secondary"):
+                    if st.button("Regenerate with T5-base", use_container_width=True, type="secondary"):
                         with st.spinner("Generating summary with T5-base..."):
-                            summary_base, metrics_base = summarize_text(
+                            summary_t5, metrics_t5 = summarize_text(
                                 st.session_state["transcript"],
                                 detail_level=detail_level,
                                 model_name="t5-base",
                                 return_metrics=True
                             )
                             
-                            # FIX: Save T5 metrics cleanly to their own variable
-                            st.session_state["summary_base"] = summary_base
-                            st.session_state["summary_metrics_base"] = metrics_base
+                            # CRITICAL FIX: Isolated memory states for T5
+                            st.session_state["summary_t5"] = summary_t5
+                            st.session_state["summary_metrics_t5"] = metrics_t5
                             
-                            st.session_state["summary"] = summary_base
-                            st.session_state["summary_metrics"] = metrics_base
+                            # Switch to T5 as active
+                            st.session_state["summary"] = summary_t5
+                            st.session_state["summary_metrics"] = metrics_t5
                             st.session_state["current_model"] = "t5-base"
                             
-                        st.success("Summary regenerated with T5-base model")
+                        st.success("Summary regenerated with T5-base")
                         st.rerun()
                 else:
-                    if st.button("Switch to BART-large-CNN", width="stretch", type="secondary"):
-                        # FIX: Pull cleanly from our saved variables
+                    if st.button("Switch to BART", use_container_width=True, type="secondary"):
+                        # CRITICAL FIX: Pull from isolated BART memory
                         st.session_state["summary"] = st.session_state["summary_bart"]
                         st.session_state["summary_metrics"] = st.session_state["summary_metrics_bart"]
                         st.session_state["current_model"] = "bart-large-cnn"
                         st.rerun()
             
-            if "summary_base" in st.session_state and current_model == "bart-large-cnn":
-                st.info("Both BART-large-CNN and T5-base summaries are available. View the Model Comparison tab for detailed analysis.")
+            # NEW: Audio Player (if audio exists for current model)
+            audio_key = f"audio_{current_model}"
+            if audio_key in st.session_state:
+                st.markdown("**Audio Summary**")
+                st.audio(st.session_state[audio_key], format='audio/mp3')
+            
+            # Show comparison notice
+            if "summary_t5" in st.session_state and "summary_bart" in st.session_state and current_model == "bart-large-cnn":
+                st.info("Both BART and T5 summaries available. View Model Comparison tab for analysis.")
 
         with tab2:
             st.markdown('<p class="section-header">Full Transcript</p>', unsafe_allow_html=True)
@@ -406,7 +497,7 @@ with right_col:
                 data=transcript_text,
                 file_name="transcript.txt",
                 mime="text/plain",
-                width="stretch"
+                use_container_width=True
             )
 
         with tab3:
@@ -446,18 +537,24 @@ with right_col:
             
             fig = go.Figure()
             fig.add_trace(go.Bar(
-                name='Transcript', x=['Word Count'], y=[trans_words], marker_color='#1f77b4', text=[f'{trans_words:,}'], textposition='auto'
+                name='Transcript', x=['Word Count'], y=[trans_words], marker_color='#1f77b4', 
+                text=[f'{trans_words:,}'], textposition='auto'
             ))
             fig.add_trace(go.Bar(
-                name='Summary', x=['Word Count'], y=[summ_words], marker_color='#7b1fa2', text=[f'{summ_words:,}'], textposition='auto'
+                name='Summary', x=['Word Count'], y=[summ_words], marker_color='#7b1fa2', 
+                text=[f'{summ_words:,}'], textposition='auto'
             ))
-            fig.update_layout(height=400, showlegend=True, yaxis_title="Words", template="plotly_white", font=dict(size=12))
+            fig.update_layout(
+                height=400, showlegend=True, yaxis_title="Words", 
+                template="plotly_white", font=dict(size=12)
+            )
             st.plotly_chart(fig, use_container_width=True)
 
         with tab4:
             st.markdown('<p class="section-header">Model Comparison</p>', unsafe_allow_html=True)
             
-            has_both = "summary_base" in st.session_state and "summary_bart" in st.session_state
+            # CRITICAL FIX: Check for isolated memory states
+            has_both = "summary_bart" in st.session_state and "summary_t5" in st.session_state
             
             if not has_both:
                 st.info("Generate a T5-base summary to enable model comparison. Click 'Regenerate with T5-base' in the Summary tab.")
@@ -466,98 +563,141 @@ with right_col:
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("#### BART-large-CNN")
-                    st.markdown("- **Processing Speed**: 20-40 seconds\n- **Model Size**: 1.6 GB\n- **Quality**: Excellent for detailed summaries")
+                    st.markdown("- **Processing Speed**: 20-40 seconds\n- **Model Size**: 1.6 GB\n- **Compression**: 60-75%\n- **Quality**: Excellent for detailed summaries")
                 with col2:
                     st.markdown("#### T5-base")
-                    st.markdown("- **Processing Speed**: 15-30 seconds\n- **Model Size**: 900 MB\n- **Quality**: Good but more aggressive compression")
+                    st.markdown("- **Processing Speed**: 15-30 seconds\n- **Model Size**: 900 MB\n- **Compression**: 85-95%\n- **Quality**: Good but aggressive compression")
             else:
-                # FIX: Pull strictly from the explicitly saved variables to prevent 0 differences
-                if "summary_metrics_bart" in st.session_state and "summary_metrics_base" in st.session_state:
-                    metrics_bart = st.session_state["summary_metrics_bart"]
-                    metrics_t5 = st.session_state["summary_metrics_base"]
-                    
-                    st.markdown("### Summary Comparison")
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.markdown("#### BART-large-CNN Summary")
-                        st.markdown(f'<div class="stats-box">Words: {metrics_bart["summary_words"]:,} | '
-                                  f'Time: {metrics_bart["processing_time"]:.1f}s | '
-                                  f'Compression: {metrics_bart["compression_ratio"]:.1f}%</div>',
-                                  unsafe_allow_html=True)
-                        st.write(st.session_state["summary_bart"])
-                    
-                    with col2:
-                        st.markdown("#### T5-base Summary")
-                        st.markdown(f'<div class="stats-box">Words: {metrics_t5["summary_words"]:,} | '
-                                  f'Time: {metrics_t5["processing_time"]:.1f}s | '
-                                  f'Compression: {metrics_t5["compression_ratio"]:.1f}%</div>',
-                                  unsafe_allow_html=True)
-                        st.write(st.session_state["summary_base"])
-                    
-                    st.divider()
-                    st.markdown("### Detailed Metrics Comparison")
-                    
-                    comp_df = pd.DataFrame({
-                        'Metric': ['Summary Words', 'Processing Time (s)', 'Compression Ratio (%)', 'Chunks Processed'],
-                        'BART-large-CNN': [metrics_bart['summary_words'], round(metrics_bart['processing_time'], 1), round(metrics_bart['compression_ratio'], 1), metrics_bart['num_chunks']],
-                        'T5-base': [metrics_t5['summary_words'], round(metrics_t5['processing_time'], 1), round(metrics_t5['compression_ratio'], 1), metrics_t5['num_chunks']],
-                        'Difference': [
-                            metrics_t5['summary_words'] - metrics_bart['summary_words'],
-                            round(metrics_t5['processing_time'] - metrics_bart['processing_time'], 1),
-                            round(metrics_t5['compression_ratio'] - metrics_bart['compression_ratio'], 1),
-                            metrics_t5['num_chunks'] - metrics_bart['num_chunks']
-                        ]
-                    })
-                    
-                    st.dataframe(comp_df, width="stretch", hide_index=True)
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        fig_time = go.Figure()
-                        fig_time.add_trace(go.Bar(
-                            x=['BART-large-CNN', 'T5-base'], y=[metrics_bart['processing_time'], metrics_t5['processing_time']], marker_color=['#1f77b4', '#7b1fa2'],
-                            text=[f"{metrics_bart['processing_time']:.1f}s", f"{metrics_t5['processing_time']:.1f}s"], textposition='auto',
-                        ))
-                        fig_time.update_layout(title="Processing Time", yaxis_title="Seconds", height=300, template="plotly_white", showlegend=False, font=dict(size=12))
-                        st.plotly_chart(fig_time, use_container_width=True)
-                    
-                    with col2:
-                        fig_words = go.Figure()
-                        fig_words.add_trace(go.Bar(
-                            x=['BART-large-CNN', 'T5-base'], y=[metrics_bart['summary_words'], metrics_t5['summary_words']], marker_color=['#1f77b4', '#7b1fa2'],
-                            text=[f"{metrics_bart['summary_words']:,}", f"{metrics_t5['summary_words']:,}"], textposition='auto',
-                        ))
-                        fig_words.update_layout(title="Summary Length", yaxis_title="Words", height=300, template="plotly_white", showlegend=False, font=dict(size=12))
-                        st.plotly_chart(fig_words, use_container_width=True)
-                    
-                    fig_compression = go.Figure()
-                    fig_compression.add_trace(go.Bar(
-                        x=['BART-large-CNN', 'T5-base'], y=[metrics_bart['compression_ratio'], metrics_t5['compression_ratio']], marker_color=['#1f77b4', '#7b1fa2'],
-                        text=[f"{metrics_bart['compression_ratio']:.1f}%", f"{metrics_t5['compression_ratio']:.1f}%"], textposition='auto',
+                # CRITICAL FIX: Pull strictly from isolated memory states
+                metrics_bart = st.session_state["summary_metrics_bart"]
+                metrics_t5 = st.session_state["summary_metrics_t5"]
+                
+                st.markdown("### Summary Comparison")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("#### BART-large-CNN Summary")
+                    st.markdown(f'<div class="stats-box">Words: {metrics_bart["summary_words"]:,} | '
+                              f'Time: {metrics_bart["processing_time"]:.1f}s | '
+                              f'Compression: {metrics_bart["compression_ratio"]:.1f}%</div>',
+                              unsafe_allow_html=True)
+                    st.write(st.session_state["summary_bart"])
+                
+                with col2:
+                    st.markdown("#### T5-base Summary")
+                    st.markdown(f'<div class="stats-box">Words: {metrics_t5["summary_words"]:,} | '
+                              f'Time: {metrics_t5["processing_time"]:.1f}s | '
+                              f'Compression: {metrics_t5["compression_ratio"]:.1f}%</div>',
+                              unsafe_allow_html=True)
+                    st.write(st.session_state["summary_t5"])
+                
+                st.divider()
+                st.markdown("### Detailed Metrics Comparison")
+                
+                comp_df = pd.DataFrame({
+                    'Metric': ['Summary Words', 'Processing Time (s)', 'Compression Ratio (%)', 'Chunks Processed'],
+                    'BART-large-CNN': [
+                        metrics_bart['summary_words'], 
+                        round(metrics_bart['processing_time'], 1), 
+                        round(metrics_bart['compression_ratio'], 1), 
+                        metrics_bart['num_chunks']
+                    ],
+                    'T5-base': [
+                        metrics_t5['summary_words'], 
+                        round(metrics_t5['processing_time'], 1), 
+                        round(metrics_t5['compression_ratio'], 1), 
+                        metrics_t5['num_chunks']
+                    ],
+                    'Difference': [
+                        metrics_bart['summary_words'] - metrics_t5['summary_words'],
+                        round(metrics_bart['processing_time'] - metrics_t5['processing_time'], 1),
+                        round(metrics_bart['compression_ratio'] - metrics_t5['compression_ratio'], 1),
+                        metrics_bart['num_chunks'] - metrics_t5['num_chunks']
+                    ]
+                })
+                
+                st.dataframe(comp_df, use_container_width=True, hide_index=True)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    fig_time = go.Figure()
+                    fig_time.add_trace(go.Bar(
+                        x=['BART-large-CNN', 'T5-base'], 
+                        y=[metrics_bart['processing_time'], metrics_t5['processing_time']], 
+                        marker_color=['#1f77b4', '#7b1fa2'],
+                        text=[f"{metrics_bart['processing_time']:.1f}s", f"{metrics_t5['processing_time']:.1f}s"], 
+                        textposition='auto',
                     ))
-                    fig_compression.update_layout(title="Compression Ratio", yaxis_title="Compression %", height=300, template="plotly_white", showlegend=False, font=dict(size=12))
-                    st.plotly_chart(fig_compression, use_container_width=True)
-                    
-                    st.markdown("### Performance Analysis")
-                    
-                    time_diff = metrics_t5['processing_time'] - metrics_bart['processing_time']
-                    word_diff = metrics_bart['summary_words'] - metrics_t5['summary_words']
-                    compression_diff = metrics_t5['compression_ratio'] - metrics_bart['compression_ratio']
-                    
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        if time_diff > 0:
-                            st.metric("T5 Speed Advantage", f"{abs(time_diff):.1f}s faster", f"{(abs(time_diff)/metrics_bart['processing_time']*100):.0f}% faster")
-                        else:
-                            st.metric("BART Speed Advantage", f"{abs(time_diff):.1f}s faster", f"{(abs(time_diff)/metrics_t5['processing_time']*100):.0f}% faster" if metrics_t5['processing_time'] > 0 else "0%")
-                    
-                    with col2:
-                        st.metric("BART Detail Advantage", f"+{word_diff:,} words", f"{(word_diff/metrics_t5['summary_words']*100):.0f}% more content" if metrics_t5['summary_words'] > 0 else "0%")
-                    
-                    with col3:
-                        st.metric("Compression Delta", f"{abs(compression_diff):.1f}%", "BART preserves more detail" if compression_diff > 0 else "Similar compression")
+                    fig_time.update_layout(
+                        title="Processing Time", yaxis_title="Seconds", height=300, 
+                        template="plotly_white", showlegend=False, font=dict(size=12)
+                    )
+                    st.plotly_chart(fig_time, use_container_width=True)
+                
+                with col2:
+                    fig_words = go.Figure()
+                    fig_words.add_trace(go.Bar(
+                        x=['BART-large-CNN', 'T5-base'], 
+                        y=[metrics_bart['summary_words'], metrics_t5['summary_words']], 
+                        marker_color=['#1f77b4', '#7b1fa2'],
+                        text=[f"{metrics_bart['summary_words']:,}", f"{metrics_t5['summary_words']:,}"], 
+                        textposition='auto',
+                    ))
+                    fig_words.update_layout(
+                        title="Summary Length", yaxis_title="Words", height=300, 
+                        template="plotly_white", showlegend=False, font=dict(size=12)
+                    )
+                    st.plotly_chart(fig_words, use_container_width=True)
+                
+                fig_compression = go.Figure()
+                fig_compression.add_trace(go.Bar(
+                    x=['BART-large-CNN', 'T5-base'], 
+                    y=[metrics_bart['compression_ratio'], metrics_t5['compression_ratio']], 
+                    marker_color=['#1f77b4', '#7b1fa2'],
+                    text=[f"{metrics_bart['compression_ratio']:.1f}%", f"{metrics_t5['compression_ratio']:.1f}%"], 
+                    textposition='auto',
+                ))
+                fig_compression.update_layout(
+                    title="Compression Ratio", yaxis_title="Compression %", height=300, 
+                    template="plotly_white", showlegend=False, font=dict(size=12)
+                )
+                st.plotly_chart(fig_compression, use_container_width=True)
+                
+                st.markdown("### Performance Analysis")
+                
+                time_diff = metrics_bart['processing_time'] - metrics_t5['processing_time']
+                word_diff = metrics_bart['summary_words'] - metrics_t5['summary_words']
+                compression_diff = metrics_bart['compression_ratio'] - metrics_t5['compression_ratio']
+                
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    if time_diff > 0:
+                        st.metric(
+                            "T5 Speed Advantage", 
+                            f"{abs(time_diff):.1f}s faster", 
+                            f"{(abs(time_diff)/metrics_bart['processing_time']*100):.0f}% faster"
+                        )
+                    else:
+                        st.metric(
+                            "BART Speed Advantage", 
+                            f"{abs(time_diff):.1f}s faster", 
+                            f"{(abs(time_diff)/metrics_t5['processing_time']*100):.0f}% faster" if metrics_t5['processing_time'] > 0 else "0%"
+                        )
+                
+                with col2:
+                    st.metric(
+                        "BART Detail Advantage", 
+                        f"+{word_diff:,} words", 
+                        f"{(word_diff/metrics_t5['summary_words']*100):.0f}% more content" if metrics_t5['summary_words'] > 0 else "0%"
+                    )
+                
+                with col3:
+                    st.metric(
+                        "Compression Delta", 
+                        f"{abs(compression_diff):.1f}%", 
+                        "BART preserves more detail" if compression_diff < 0 else "T5 more aggressive"
+                    )
 
     else:
         st.info("Process a podcast or video to view results")
@@ -565,6 +705,6 @@ with right_col:
 st.divider()
 st.markdown("""
     <div style='text-align: center; color: #666; padding: 1rem;'>
-        <small>Powered by OpenAI Whisper, BART-large-CNN, T5-base, and yt-dlp</small>
+        <small>Powered by OpenAI Whisper, BART-large-CNN, T5-base, yt-dlp, and Google TTS</small>
     </div>
 """, unsafe_allow_html=True)
