@@ -1,3 +1,14 @@
+<<<<<<< Updated upstream
+=======
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+#to ensure that the .env file is loaded
+from dotenv import load_dotenv
+load_dotenv()
+
+>>>>>>> Stashed changes
 import streamlit as st
 import os
 from src.ingestion.youtube import fetch_youtube_transcript, download_audio, get_video_info
@@ -735,19 +746,7 @@ with right_col:
                 key="qa_question"
             )
             
-            col1, col2 = st.columns([3, 1])
-            
-            with col1:
-                detail_qa = st.radio(
-                    "Answer detail:",
-                    ["brief", "medium", "detailed"],
-                    index=1,
-                    horizontal=True,
-                    help="Brief: 1 relevant chunk | Medium: 2 chunks | Detailed: 3 chunks"
-                )
-            
-            with col2:
-                ask_button = st.button("Ask", type="primary", use_container_width=True)
+            ask_button = st.button("Ask", type="primary", use_container_width=True)
             
             # Generate answer when button clicked
             if ask_button and question.strip():
@@ -756,8 +755,7 @@ with right_col:
                         answer = generate_answer(
                             question,
                             st.session_state["rag_index"],
-                            st.session_state["rag_chunks"],
-                            detail_level=detail_qa
+                            st.session_state["rag_chunks"]
                         )
                         
                         # Store in session state
@@ -766,8 +764,7 @@ with right_col:
                         
                         st.session_state["qa_history"].append({
                             "question": question,
-                            "answer": answer,
-                            "detail": detail_qa
+                            "answer": answer
                         })
                         
                     except Exception as e:

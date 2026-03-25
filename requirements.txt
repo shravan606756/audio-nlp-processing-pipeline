@@ -13,3 +13,5 @@ pytest
 pytest-cov
 pytest-mock
 flake8
+python-dotenv
+openai
