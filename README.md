@@ -334,7 +334,7 @@ Each text chunk is independently passed through the selected transformer model. 
 
 ### 5. Retrieval-Augmented Generation (RAG)
 
-The RAG subsystem indexes the full transcript into a FAISS vector store and supports natural language querying. Relevant passages are retrieved by cosine similarity and injected as context into a generative model for answer synthesis.
+The RAG subsystem indexes the full transcript into a FAISS vector store and supports natural language querying. Relevant passages are retrieved by L2 distance and injected as context into **Llama 3.3 70B** served via the **Groq API** for low-latency answer synthesis. The Groq client is initialized using the OpenAI-compatible SDK pointed at `https://api.groq.com/openai/v1`, with the `GROQ_API_KEY` loaded from `.env` via `python-dotenv`.
 
 ```
                     INDEXING PHASE (run once per transcript)
@@ -344,75 +344,95 @@ The RAG subsystem indexes the full transcript into a FAISS vector store and supp
                     |
                     v
 +-------------------+------------------------+
-|  LangChain RecursiveCharacterTextSplitter  |
-|  - chunk_size: 500 chars                   |
-|  - chunk_overlap: 50 chars                 |
+|  Word-based Text Splitter                  |
+|  (src.processing.chunking.split_text)      |
+|  - max_words: 350 per chunk                |
+|  - overlap:    60 words between chunks     |
 +-------------------+------------------------+
                     |
           +---------+---------+
           |         |         |
           v         v         v
        +------+  +------+  +------+
-       | Doc  |  | Doc  |  | Doc  |
+       | Chunk|  | Chunk|  | Chunk|
        |  1   |  |  2   |  |  N   |
        +--+---+  +--+---+  +--+---+
           |         |         |
           v         v         v
 +--------------------------------------------+
-|  Sentence Transformers Embedding Model     |
-|  (all-MiniLM-L6-v2 or equivalent)         |
-|  Output: 384-dim dense float32 vectors     |
+|  SentenceTransformer Embedding Model       |
+|  Model: all-MiniLM-L6-v2 (lazy-loaded)    |
+|  Output: 384-dim float32 numpy vectors     |
 +-------------------+------------------------+
                     |
                     v
 +-------------------+------------------------+
-|  FAISS IndexFlatIP                         |
-|  (Inner product / cosine similarity)       |
-|  In-memory flat index                      |
+|  FAISS IndexFlatL2                         |
+|  (Euclidean / L2 distance, flat index)     |
+|  In-memory, no quantization                |
+|  ntotal = number of transcript chunks      |
 +--------------------------------------------+
 
 
-                    QUERY PHASE (per user query)
+                    QUERY PHASE (per user question)
 +--------------------------------------------+
-|  User Natural Language Query               |
+|  User Natural Language Question            |
 +-------------------+------------------------+
                     |
                     v
 +-------------------+------------------------+
-|  Query Embedding (same encoder model)      |
+|  Query Embedding                           |
+|  (same all-MiniLM-L6-v2 encoder)          |
 |  Output: 384-dim float32 query vector      |
 +-------------------+------------------------+
                     |
                     v
 +-------------------+------------------------+
-|  FAISS Similarity Search                   |
-|  - top_k: 3-5 nearest neighbors           |
-|  - Distance: inner product (normalized)    |
-|  - Threshold filtering (optional)          |
+|  FAISS index.search()                      |
+|  - top_k = 4 (answer generation)          |
+|  - top_k = 5 (search_transcript())        |
+|  Returns: distances[], indices[]           |
+|  Relevance score = 1 / (1 + L2_distance)  |
 +-------------------+------------------------+
                     |
                     v
 +-------------------+------------------------+
 |  Context Construction                      |
-|  - Retrieved passages concatenated         |
-|  - Prompt template injection               |
-|  - Source offset metadata attached         |
+|  - top_k chunks joined with newline        |
+|  - Each chunk carries distance + index     |
 +-------------------+------------------------+
                     |
                     v
 +-------------------+------------------------+
-|  Generative Answer Synthesis               |
-|  (T5 or BART in QA mode)                  |
-|  Input: [context] + [question]             |
-|  Output: free-form answer string           |
+|  Groq API  (OpenAI-compatible endpoint)    |
+|  base_url: https://api.groq.com/openai/v1  |
+|  model:    llama-3.3-70b-versatile         |
+|  temperature: 0.3                          |
+|                                            |
+|  System prompt:                            |
+|  "Answer from podcast transcript context   |
+|   only. If not found, say 'Not found'.    |
+|   Keep answers concise."                   |
+|                                            |
+|  User prompt:                              |
+|  Context: {retrieved_chunks}               |
+|  Question: {user_question}                 |
 +-------------------+------------------------+
                     |
                     v
 +-------------------+------------------------+
 |  Final Q&A Response                        |
-|  + Source passage attribution              |
+|  (response.choices[0].message.content)     |
 +--------------------------------------------+
 ```
+
+**Environment variable required:**
+
+```
+GROQ_API_KEY=your_groq_api_key_here
+```
+
+Stored in a `.env` file at the project root. Loaded automatically at module import via `python-dotenv`.
 
 ---
 
@@ -507,16 +527,16 @@ Telemetry collected per inference run includes: character-level input/output foo
 Application Layer
 +----------------------------------+
 |  Streamlit (UI framework)        |
-|  FastAPI (underlying ASGI server)|
 +----------------------------------+
 
 Machine Learning / Inference
 +----------------------------------+
 |  PyTorch (LibTorch runtime)      |
-|  HuggingFace Transformers        |
+|  HuggingFace Transformers 4.41.2 |
 |  - BART-large-CNN                |
 |  - T5-base                       |
-|  HuggingFace Tokenizers          |
+|  sentencepiece (tokenizer)       |
+|  accelerate (device dispatch)    |
 |  Sentence Transformers           |
 +----------------------------------+
 
@@ -525,30 +545,64 @@ Audio Processing
 |  OpenAI Whisper (base)           |
 |  gTTS (Google Text-to-Speech)    |
 |  yt-dlp (YouTube extraction)     |
+|  youtube-transcript-api          |
 |  ffmpeg (format normalization)   |
 +----------------------------------+
 
 Vector Search / RAG
 +----------------------------------+
-|  FAISS (Facebook AI Similarity   |
-|         Search)                  |
-|  LangChain (text splitter,       |
-|             retrieval chain)     |
+|  faiss-cpu (similarity search)   |
 +----------------------------------+
 
-Data and Visualization
+LLM / Groq Integration
 +----------------------------------+
-|  Pandas (DataFrame operations)   |
-|  Plotly Graph Objects            |
-|    (interactive metric charts)   |
+|  Groq API                        |
+|  - Model: llama-3.3-70b-versatile|
+|  - OpenAI-compatible SDK client  |
+|  - base_url: api.groq.com/openai |
+|  openai (SDK, used as Groq client|
+|  python-dotenv (GROQ_API_KEY)    |
++----------------------------------+
+
+Testing and CI
++----------------------------------+
+|  pytest                          |
+|  pytest-cov (coverage reports)   |
+|  pytest-mock (mocking fixtures)  |
+|  flake8 (linting)                |
+|  GitHub Actions (CI workflow)    |
 +----------------------------------+
 
 Runtime
 +----------------------------------+
-|  Python 3.10+                    |
+|  Python 3.10+ (see runtime.txt)  |
 |  pip / virtualenv                |
 +----------------------------------+
 ```
+
+### Pinned Dependencies (from `requirements.txt`)
+
+```
+streamlit
+openai-whisper
+transformers==4.41.2
+torch
+yt-dlp
+sentencepiece
+accelerate
+youtube-transcript-api
+sentence-transformers
+faiss-cpu
+gTTS
+pytest
+pytest-cov
+pytest-mock
+flake8
+python-dotenv
+openai
+```
+
+Note: `transformers` is pinned at `4.41.2` due to compatibility constraints with the BART and T5 pipeline interfaces used. Upgrading this version without testing may break inference behavior.
 
 ---
 
@@ -631,11 +685,15 @@ Key hyperparameters can be adjusted via `config.yaml` or environment variables:
 | `T5_MAX_INPUT_TOKENS` | `512` | Maximum token length per chunk for T5 |
 | `BART_MAX_NEW_TOKENS` | `150` | Maximum generation length for BART output |
 | `T5_MAX_NEW_TOKENS` | `100` | Maximum generation length for T5 output |
-| `CHUNK_OVERLAP` | `50` | Character overlap between RAG text splits |
-| `RAG_TOP_K` | `4` | Number of nearest neighbor passages retrieved |
-| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Sentence transformer model for RAG embeddings |
-| `DEVICE` | `auto` | Inference device: `auto`, `cpu`, `cuda` |
-| `AUDIO_CACHE_DIR` | `/tmp/audio_cache` | Temporary directory for downloaded audio files |
+| `RAG_CHUNK_MAX_WORDS` | `350` | Maximum words per RAG chunk (word-based splitter) |
+| `RAG_CHUNK_OVERLAP` | `60` | Word overlap between consecutive RAG chunks |
+| `RAG_TOP_K_ANSWER` | `4` | Top-k chunks retrieved for answer generation |
+| `RAG_TOP_K_SEARCH` | `5` | Top-k chunks retrieved for transcript search |
+| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Sentence transformer model for FAISS embeddings |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq LLM used for RAG answer synthesis |
+| `GROQ_TEMPERATURE` | `0.3` | Sampling temperature for Groq inference |
+| `GROQ_API_KEY` | (required, from `.env`) | Groq API key loaded via `python-dotenv` |
+| `DEVICE` | `auto` | Inference device for Whisper/transformers: `auto`, `cpu`, `cuda` |
 
 ---
 
@@ -677,21 +735,56 @@ Metrics are rendered as interactive Plotly charts within the Streamlit interface
 ```
 audio-nlp-processing-pipeline/
 |
++-- .github/
+|   +-- workflows/                  # GitHub Actions CI pipeline
+|
 +-- app/
-|   +-- app.py                  # Main Streamlit entry point
-|   +-- ingestion.py            # Audio ingestion and yt-dlp wrapper
-|   +-- transcription.py        # Whisper STT inference
-|   +-- chunker.py              # Token-aware text segmentation
-|   +-- summarizer.py           # BART and T5 summarization pipelines
-|   +-- rag.py                  # FAISS indexing and RAG query engine
-|   +-- metrics.py              # Telemetry collection and formatting
+|   +-- (Streamlit entry point and UI logic)
 |
-+-- config/
-|   +-- config.yaml             # Hyperparameter configuration
++-- src/
+|   +-- retrieval/
+|   |   +-- rag.py                  # FAISS indexing, chunk retrieval, Groq answer synthesis
+|   +-- processing/
+|   |   +-- chunking.py             # Word-based text splitter (split_text)
+|   +-- (transcription, summarization modules)
 |
-+-- requirements.txt
++-- tests/
+|   +-- (pytest test suites with mock fixtures)
+|
++-- config.py                       # Configuration constants (in progress)
++-- requirements.txt                # Pinned Python dependencies
++-- runtime.txt                     # Python runtime version specifier
++-- pytest.ini                      # pytest configuration and test paths
++-- .env                            # Local secrets (GROQ_API_KEY) — not committed
++-- .gitignore
 +-- README.md
 ```
+
+---
+
+## Testing
+
+The project includes a full pytest-based test suite with coverage reporting and mock fixtures for all external dependencies (Whisper, HuggingFace pipelines, yt-dlp, FAISS).
+
+**Run all tests:**
+
+```bash
+pytest
+```
+
+**Run with coverage report:**
+
+```bash
+pytest --cov=src --cov-report=term-missing
+```
+
+**Run linting:**
+
+```bash
+flake8 src/ app/ tests/
+```
+
+The `.github/workflows/` directory contains a CI pipeline that automatically runs tests and linting on each push and pull request to `main`.
 
 ---
 
