@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-=======
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -9,11 +6,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from dotenv import load_dotenv
 load_dotenv()
 
->>>>>>> Stashed changes
+
 import streamlit as st
-=======
 import sys
->>>>>>> 7c9e92dd411e65f5205545590f4bc8e8ded941b8
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
