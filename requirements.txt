@@ -9,3 +9,7 @@ youtube-transcript-api
 sentence-transformers
 faiss-cpu
 gTTS
+pytest
+pytest-cov
+pytest-mock
+flake8
