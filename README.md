@@ -344,10 +344,16 @@ The RAG subsystem indexes the full transcript into a FAISS vector store and supp
                     |
                     v
 +-------------------+------------------------+
+<<<<<<< HEAD
 |  Word-based Text Splitter                  |
 |  (src.processing.chunking.split_text)      |
 |  - max_words: 350 per chunk                |
 |  - overlap:    60 words between chunks     |
+=======
+|  Custom Boundary-Aware Text Splitter       |
+|  - max_words: 350 per chunk                |
+|  - overlap: 60 words                       |
+>>>>>>> c6f8622 (initialized centralized config file and updated project description)
 +-------------------+------------------------+
                     |
           +---------+---------+
@@ -404,6 +410,7 @@ The RAG subsystem indexes the full transcript into a FAISS vector store and supp
                     |
                     v
 +-------------------+------------------------+
+<<<<<<< HEAD
 |  Groq API  (OpenAI-compatible endpoint)    |
 |  base_url: https://api.groq.com/openai/v1  |
 |  model:    llama-3.3-70b-versatile         |
@@ -417,6 +424,12 @@ The RAG subsystem indexes the full transcript into a FAISS vector store and supp
 |  User prompt:                              |
 |  Context: {retrieved_chunks}               |
 |  Question: {user_question}                 |
+=======
+|  Generative Answer Synthesis               |
+|  (Llama-3.3-70b via Groq API)              |
+|  Input: [context] + [question]             |
+|  Output: free-form answer string           |
+>>>>>>> c6f8622 (initialized centralized config file and updated project description)
 +-------------------+------------------------+
                     |
                     v
@@ -551,7 +564,13 @@ Audio Processing
 
 Vector Search / RAG
 +----------------------------------+
+<<<<<<< HEAD
 |  faiss-cpu (similarity search)   |
+=======
+|  FAISS (Facebook AI Similarity   |
+|         Search)                  |
+|  Groq API (Llama 3.3 LLM for QA) |
+>>>>>>> c6f8622 (initialized centralized config file and updated project description)
 +----------------------------------+
 
 LLM / Groq Integration
@@ -612,6 +631,7 @@ Note: `transformers` is pinned at `4.41.2` due to compatibility constraints with
 
 - Python 3.10 or higher (strictly required)
 - `ffmpeg` installed and available on system `PATH`
+- Groq API Key (required for Q&A functionality)
 - CUDA-capable GPU (optional; CPU inference is supported but slower)
 
 ### Step-by-step Installation
@@ -637,7 +657,15 @@ venv\Scripts\activate           # Windows
 pip install -r requirements.txt
 ```
 
-**4. Verify ffmpeg availability**
+**4. Configure Environment Variables**
+
+Create a `.env` file in the root directory:
+```bash
+echo "GROQ_API_KEY=your_actual_key_here" > .env
+echo "PYTHONPATH=." >> .env
+```
+
+**5. Verify ffmpeg availability**
 
 ```bash
 ffmpeg -version
@@ -656,7 +684,7 @@ brew install ffmpeg
 choco install ffmpeg
 ```
 
-**5. (Optional) Verify CUDA / GPU availability**
+**6. (Optional) Verify CUDA / GPU availability**
 
 ```bash
 python -c "import torch; print(torch.cuda.is_available())"
@@ -664,7 +692,7 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 If `True`, inference will utilize GPU automatically. Set `DEVICE=cpu` in the environment to force CPU execution.
 
-**6. Launch the application**
+**7. Launch the application**
 
 ```bash
 streamlit run app/app.py
@@ -676,15 +704,17 @@ The application will be available at `http://localhost:8501` by default.
 
 ## Configuration Reference
 
-Key hyperparameters can be adjusted via `config.yaml` or environment variables:
+Key hyperparameters can be adjusted via `.env` and `config.py` at the project root:
 
 | Parameter | Default | Description |
 |---|---|---|
+| `GROQ_API_KEY` | None | API Key for Groq Llama 3.3 (required for Q&A) |
 | `WHISPER_MODEL` | `base` | Whisper model size: `tiny`, `base`, `small`, `medium`, `large` |
 | `BART_MAX_INPUT_TOKENS` | `1024` | Maximum token length per chunk for BART |
 | `T5_MAX_INPUT_TOKENS` | `512` | Maximum token length per chunk for T5 |
 | `BART_MAX_NEW_TOKENS` | `150` | Maximum generation length for BART output |
 | `T5_MAX_NEW_TOKENS` | `100` | Maximum generation length for T5 output |
+<<<<<<< HEAD
 | `RAG_CHUNK_MAX_WORDS` | `350` | Maximum words per RAG chunk (word-based splitter) |
 | `RAG_CHUNK_OVERLAP` | `60` | Word overlap between consecutive RAG chunks |
 | `RAG_TOP_K_ANSWER` | `4` | Top-k chunks retrieved for answer generation |
@@ -694,6 +724,14 @@ Key hyperparameters can be adjusted via `config.yaml` or environment variables:
 | `GROQ_TEMPERATURE` | `0.3` | Sampling temperature for Groq inference |
 | `GROQ_API_KEY` | (required, from `.env`) | Groq API key loaded via `python-dotenv` |
 | `DEVICE` | `auto` | Inference device for Whisper/transformers: `auto`, `cpu`, `cuda` |
+=======
+| `CHUNK_OVERLAP` | `60` | Word overlap between RAG text splits |
+| `RAG_CHUNK_SIZE`| `350` | Maximum words per chunk for RAG indexing |
+| `RAG_TOP_K` | `4` | Number of nearest neighbor passages retrieved |
+| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Sentence transformer model for RAG embeddings |
+| `DEVICE` | `auto` | Inference device: `auto`, `cpu`, `cuda` |
+| `AUDIO_CACHE_DIR` | `/tmp/audio_cache` | Temporary directory for downloaded audio files |
+>>>>>>> c6f8622 (initialized centralized config file and updated project description)
 
 ---
 
@@ -739,6 +777,7 @@ audio-nlp-processing-pipeline/
 |   +-- workflows/                  # GitHub Actions CI pipeline
 |
 +-- app/
+<<<<<<< HEAD
 |   +-- (Streamlit entry point and UI logic)
 |
 +-- src/
@@ -757,6 +796,30 @@ audio-nlp-processing-pipeline/
 +-- pytest.ini                      # pytest configuration and test paths
 +-- .env                            # Local secrets (GROQ_API_KEY) — not committed
 +-- .gitignore
+=======
+|   +-- app.py                  # Main Streamlit entry point
+|
++-- src/
+|   +-- ingestion/
+|   |   +-- youtube.py          # YouTube video/audio/transcript extraction
+|   |   +-- transcribe.py       # Whisper STT implementation
+|   +-- processing/
+|   |   +-- chunking.py         # Custom sentence-boundary text chunker
+|   |   +-- summarize.py        # BART and T5 summarization pipelines
+|   +-- retrieval/
+|   |   +-- rag.py              # FAISS indexing and Llama 3.3 QA engine
+|
++-- tests/                      # Pytest unit tests
+|   +-- test_chunking.py
+|   +-- test_ingestion.py
+|   +-- test_rag.py
+|
++-- config.py                   # Central configuration module
++-- .env                        # Environment variables and API keys
++-- pytest.ini                  # Pytest configuration
++-- runtime.txt                 # Deployment runtime spec
++-- requirements.txt
+>>>>>>> c6f8622 (initialized centralized config file and updated project description)
 +-- README.md
 ```
 
