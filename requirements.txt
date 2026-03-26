@@ -9,6 +9,8 @@ youtube-transcript-api
 sentence-transformers
 faiss-cpu
 gTTS
+python-dotenv
+openai
 pytest
 pytest-cov
 pytest-mock
