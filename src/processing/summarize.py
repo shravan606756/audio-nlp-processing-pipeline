@@ -1,5 +1,6 @@
 from transformers import pipeline
 from src.processing.chunking import split_text
+from config import DEVICE
 import time
 
 _summarizers = {}
@@ -15,12 +16,14 @@ def get_summarizer(model_name="bart-large-cnn"):
         full_model_name = model_map.get(model_name, model_name)
         print(f"Loading model: {full_model_name}...")
         
+        
+        device_id = -1 if DEVICE.lower() == "cpu" else 0
         _summarizers[model_name] = pipeline(
             "summarization",
             model=full_model_name,
-            device=-1  # CPU mode
+            device=device_id
         )
-        print(f"Model {model_name} loaded successfully")
+        print(f"Model {model_name} loaded successfully on device {device_id}")
     return _summarizers[model_name]
 
 # Detail configs balanced for token limits (BART: 1024 tokens = ~750 words max)
