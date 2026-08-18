@@ -591,24 +591,18 @@ with right_col:
                     except Exception as e:
                         st.error(f"Error generating answer: {str(e)}")
             
-            # Display current answer
+            # Display current answer and history
             if "qa_history" in st.session_state and len(st.session_state["qa_history"]) > 0:
                 st.divider()
                 
-                # Show most recent Q&A
-                latest = st.session_state["qa_history"][-1]
-                st.markdown(f"**Q: {latest['question']}**")
-                st.markdown(latest['answer'])
+                st.markdown("### Q&A History")
+                for i, qa in enumerate(st.session_state["qa_history"], 1):
+                    st.markdown(f"**Q{i}: {qa['question']}**")
+                    st.markdown(qa['answer'])
+                    if i < len(st.session_state["qa_history"]):
+                        st.markdown("---")
                 
-                # Show Q&A history if there are multiple
-                if len(st.session_state["qa_history"]) > 1:
-                    st.divider()
-                    with st.expander(f"View Q&A History ({len(st.session_state['qa_history'])-1} previous)"):
-                        for i, qa in enumerate(reversed(st.session_state["qa_history"][:-1]), 1):
-                            st.markdown(f"**Q{len(st.session_state['qa_history'])-i}: {qa['question']}**")
-                            st.markdown(qa['answer'])
-                            st.markdown("---")
-                
+                st.divider()
                 # Clear history button
                 if st.button("Clear Q&A History", use_container_width=True):
                     st.session_state["qa_history"] = []
