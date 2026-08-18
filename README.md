@@ -23,14 +23,14 @@ This system decouples acquisition, transcription, and reasoning into independent
 
 ```mermaid
 flowchart LR
-    %% Define Node Styles (Rectangles with transparent backgrounds and colored borders)
-    classDef uiStyle fill:transparent,stroke:#8e24aa,stroke-width:2px,color:inherit
-    classDef ingestionStyle fill:transparent,stroke:#00acc1,stroke-width:2px,color:inherit
-    classDef transcriptionStyle fill:transparent,stroke:#43a047,stroke-width:2px,color:inherit
-    classDef processingStyle fill:transparent,stroke:#fbc02d,stroke-width:2px,color:inherit
-    classDef summarizationStyle fill:transparent,stroke:#e53935,stroke-width:2px,color:inherit
-    classDef ragStyle fill:transparent,stroke:#1e88e5,stroke-width:2px,color:inherit
-    classDef ttsStyle fill:transparent,stroke:#546e7a,stroke-width:2px,color:inherit
+    %% Define Node Styles (Dark theme with solid fill, colored borders, and rounded corners)
+    classDef uiStyle fill:#1E2530,stroke:#3498DB,stroke-width:2px,color:#FFF,rx:8px,ry:8px;
+    classDef ingestionStyle fill:#1A252C,stroke:#5DADE2,stroke-width:2px,color:#FFF,rx:8px,ry:8px;
+    classDef transcriptionStyle fill:#2C3E50,stroke:#E74C3C,stroke-width:2px,color:#FFF,rx:8px,ry:8px;
+    classDef processingStyle fill:#273746,stroke:#F39C12,stroke-width:2px,color:#FFF,rx:8px,ry:8px;
+    classDef summarizationStyle fill:#1B2631,stroke:#2ECC71,stroke-width:2px,color:#FFF,rx:8px,ry:8px;
+    classDef ragStyle fill:#212F3D,stroke:#9B59B6,stroke-width:2px,color:#FFF,rx:8px,ry:8px;
+    classDef ttsStyle fill:#283747,stroke:#95A5A6,stroke-width:2px,color:#FFF,rx:8px,ry:8px;
 
     %% Subgraph 1: User Interface Layer
     subgraph UI ["Streamlit Web Interface"]
